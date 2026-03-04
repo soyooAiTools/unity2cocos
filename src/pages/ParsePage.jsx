@@ -9,8 +9,9 @@ import {
   CodeOutlined, PictureOutlined, SoundOutlined, AppstoreOutlined,
   NodeIndexOutlined, BgColorsOutlined, RocketOutlined, RobotOutlined,
   CheckCircleOutlined, ExportOutlined, SearchOutlined, PlayCircleOutlined,
+  ToolOutlined,
 } from '@ant-design/icons';
-import { scanProject, parseProject, getTask, convertProject, convertScriptsAI } from '../api';
+import { scanProject, parseProject, getTask, convertProject, convertScriptsAI, fixMeshRefs } from '../api';
 
 const { Title, Text } = Typography;
 
@@ -300,10 +301,45 @@ export default function ParsePage() {
         <Alert
           type="success"
           message="转换完成！"
-          description={`Cocos Creator 3.8 工程已输出到: ${outputPath}`}
+          description={
+            <div>
+              <div>{`Cocos Creator 3.8 工程已输出到: ${outputPath}`}</div>
+              <div style={{ marginTop: 8, color: '#666' }}>
+                ⚠️ 请先用 Cocos Creator 打开工程等待资源导入完成，然后点击下方按钮修复模型引用
+              </div>
+            </div>
+          }
           showIcon
           style={{ marginBottom: 16 }}
         />
+      )}
+
+      {/* Fix Mesh Refs button - show after conversion */}
+      {step === 4 && outputPath && (
+        <Card style={{ marginBottom: 16 }}>
+          <Space direction="vertical" style={{ width: '100%' }}>
+            <Text type="secondary">
+              Cocos Creator 导入资源后，模型的 Mesh 子资源 ID 会重新生成。点击此按钮自动修复场景中的 Mesh 引用。
+            </Text>
+            <Button
+              type="primary"
+              size="large"
+              icon={<ToolOutlined />}
+              block
+              style={{ height: 48, fontSize: 16 }}
+              onClick={async () => {
+                try {
+                  const res = await fixMeshRefs(outputPath);
+                  message.success(`修复完成！${res.fixed}/${res.total} 个 Mesh 引用已更新`);
+                } catch (err) {
+                  message.error('修复失败: ' + (err.response?.data?.error || err.message));
+                }
+              }}
+            >
+              🔧 修复 Mesh 引用（Cocos 导入后点击）
+            </Button>
+          </Space>
+        </Card>
       )}
 
       {/* Parse Results */}

@@ -81,4 +81,10 @@ export async function convertScriptsAI(taskId, outputPath) {
   return res.data;
 }
 
+// Fix Mesh Refs (post-Cocos-import)
+export async function fixMeshRefs(projectPath) {
+  const res = await api.post('/unity2cocos/fix-mesh-refs', { projectPath });
+  return res.data;
+}
+
 export default api;
