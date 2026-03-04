@@ -109,7 +109,7 @@ export default function ParsePage() {
     setLoading(true);
     setStep(3);
     try {
-      const data = await convertProject(projectPath, outputPath);
+      const data = await convertProject(projectPath, outputPath, selectedScene);
       setConvertResult(data);
 
       if (useAI && taskId) {

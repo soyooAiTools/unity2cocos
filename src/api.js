@@ -64,8 +64,8 @@ export async function deleteTask(taskId) {
 }
 
 // Convert
-export async function convertProject(projectPath, outputPath) {
-  const res = await api.post('/unity2cocos/convert', { projectPath, outputPath });
+export async function convertProject(projectPath, outputPath, scenePath) {
+  const res = await api.post('/unity2cocos/convert', { projectPath, outputPath, scenePath });
   return res.data;
 }
 
