@@ -2,15 +2,15 @@ import React, { useState } from 'react';
 import {
   Card, Button, Input, Space, Typography, Spin, Statistic, Row, Col,
   Tree, Table, Tabs, Tag, message, Empty, Divider, Steps, Progress,
-  Switch, Alert,
+  Switch, Alert, List, Radio,
 } from 'antd';
 import {
   FolderOpenOutlined, ThunderboltOutlined, FileOutlined,
   CodeOutlined, PictureOutlined, SoundOutlined, AppstoreOutlined,
   NodeIndexOutlined, BgColorsOutlined, RocketOutlined, RobotOutlined,
-  CheckCircleOutlined, ExportOutlined,
+  CheckCircleOutlined, ExportOutlined, SearchOutlined, PlayCircleOutlined,
 } from '@ant-design/icons';
-import { parseProject, getTask, convertProject, convertScriptsAI } from '../api';
+import { scanProject, parseProject, getTask, convertProject, convertScriptsAI } from '../api';
 
 const { Title, Text } = Typography;
 
@@ -18,7 +18,9 @@ export default function ParsePage() {
   const [projectPath, setProjectPath] = useState('');
   const [outputPath, setOutputPath] = useState('');
   const [loading, setLoading] = useState(false);
-  const [step, setStep] = useState(0); // 0=idle, 1=parsed, 2=converting, 3=done
+  const [step, setStep] = useState(0); // 0=idle, 1=scanned, 2=parsed, 3=converting, 4=done
+  const [scenes, setScenes] = useState([]); // scan result
+  const [selectedScene, setSelectedScene] = useState(null); // user-chosen scene
   const [result, setResult] = useState(null);
   const [summary, setSummary] = useState(null);
   const [taskId, setTaskId] = useState(null);
@@ -44,24 +46,49 @@ export default function ParsePage() {
     }
   };
 
-  // Step 1: Parse
-  const handleParse = async () => {
+  // Step 1: Scan — quick scene list
+  const handleScan = async () => {
     if (!projectPath) {
       message.warning('请先选择 Unity 工程目录');
       return;
     }
     setLoading(true);
+    setScenes([]);
+    setSelectedScene(null);
     setResult(null);
     setSummary(null);
     setStep(0);
     try {
-      const data = await parseProject(projectPath);
+      const data = await scanProject(projectPath);
+      setScenes(data.scenes || []);
+      if (data.scenes?.length === 1) {
+        setSelectedScene(data.scenes[0].path);
+      }
+      setStep(1);
+      message.success(`发现 ${data.scenes?.length || 0} 个场景`);
+    } catch (err) {
+      message.error('扫描失败: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Step 2: Parse selected scene
+  const handleParse = async () => {
+    if (!selectedScene) {
+      message.warning('请先选择要转换的场景');
+      return;
+    }
+    setLoading(true);
+    setResult(null);
+    setSummary(null);
+    try {
+      const data = await parseProject(projectPath, selectedScene);
       setSummary(data.summary);
       setTaskId(data.taskId);
       const full = await getTask(data.taskId);
       setResult(full.parseResult);
-      setStep(1);
-      // Auto-suggest output path
+      setStep(2);
       if (!outputPath) {
         setOutputPath(projectPath.replace(/[/\\]?$/, '') + '_cocos');
       }
@@ -73,20 +100,18 @@ export default function ParsePage() {
     }
   };
 
-  // Step 2: Convert
+  // Step 3: Convert
   const handleConvert = async () => {
     if (!outputPath) {
       message.warning('请选择输出目录');
       return;
     }
     setLoading(true);
-    setStep(2);
+    setStep(3);
     try {
-      // Basic conversion (assets + scenes + skeleton scripts)
       const data = await convertProject(projectPath, outputPath);
       setConvertResult(data);
 
-      // AI script enhancement
       if (useAI && taskId) {
         setAiProgress({ current: 0, total: summary?.scripts || 0 });
         try {
@@ -101,11 +126,11 @@ export default function ParsePage() {
         }
       }
 
-      setStep(3);
+      setStep(4);
       message.success('转换完成！');
     } catch (err) {
       message.error('转换失败: ' + (err.response?.data?.error || err.message));
-      setStep(1);
+      setStep(2);
     } finally {
       setLoading(false);
     }
@@ -120,6 +145,7 @@ export default function ParsePage() {
         style={{ marginBottom: 24 }}
         items={[
           { title: '选择工程', icon: <FolderOpenOutlined /> },
+          { title: '选择场景', icon: <AppstoreOutlined /> },
           { title: '解析完成', icon: <FileOutlined /> },
           { title: '转换中', icon: <RocketOutlined /> },
           { title: '完成', icon: <CheckCircleOutlined /> },
@@ -143,16 +169,73 @@ export default function ParsePage() {
               <Button
                 size="large"
                 type="primary"
-                icon={<ThunderboltOutlined />}
-                onClick={handleParse}
+                icon={<SearchOutlined />}
+                onClick={handleScan}
                 loading={loading && step === 0}
               >
-                解析
+                扫描
               </Button>
             </Space.Compact>
           </div>
+        </Space>
+      </Card>
 
-          {step >= 1 && (
+      {/* Scene Selection */}
+      {step >= 1 && scenes.length > 0 && (
+        <Card
+          title={`选择要转换的场景（共 ${scenes.length} 个）`}
+          style={{ marginBottom: 16 }}
+          extra={
+            <Button
+              type="primary"
+              icon={<ThunderboltOutlined />}
+              onClick={handleParse}
+              loading={loading && step === 1}
+              disabled={!selectedScene}
+            >
+              解析选中场景
+            </Button>
+          }
+        >
+          <Radio.Group
+            value={selectedScene}
+            onChange={(e) => setSelectedScene(e.target.value)}
+            style={{ width: '100%' }}
+          >
+            <List
+              dataSource={scenes}
+              renderItem={(scene) => (
+                <List.Item
+                  style={{
+                    cursor: 'pointer',
+                    background: selectedScene === scene.path ? '#177ddc15' : 'transparent',
+                    borderRadius: 8,
+                    padding: '12px 16px',
+                    transition: 'background 0.2s',
+                  }}
+                  onClick={() => setSelectedScene(scene.path)}
+                >
+                  <Radio value={scene.path}>
+                    <Space>
+                      <PlayCircleOutlined style={{ fontSize: 18, color: '#177ddc' }} />
+                      <div>
+                        <Text strong style={{ fontSize: 15 }}>{scene.name}</Text>
+                        <br />
+                        <Text type="secondary" style={{ fontSize: 12 }}>{scene.path}</Text>
+                      </div>
+                    </Space>
+                  </Radio>
+                </List.Item>
+              )}
+            />
+          </Radio.Group>
+        </Card>
+      )}
+
+      {/* Post-parse: output path + convert button */}
+      {step >= 2 && (
+        <Card title="转换设置" style={{ marginBottom: 16 }}>
+          <Space direction="vertical" style={{ width: '100%' }} size="middle">
             <div>
               <Text type="secondary" style={{ display: 'block', marginBottom: 4 }}>Cocos 工程输出目录</Text>
               <Space.Compact style={{ width: '100%' }}>
@@ -166,9 +249,7 @@ export default function ParsePage() {
                 <Button size="large" onClick={handleSelectOutput}>浏览</Button>
               </Space.Compact>
             </div>
-          )}
 
-          {step >= 1 && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
               <Space>
                 <RobotOutlined />
@@ -179,26 +260,24 @@ export default function ParsePage() {
                 <Text type="secondary">使用 AI 将 C# 逻辑完整转换为 TypeScript（而非仅生成骨架）</Text>
               )}
             </div>
-          )}
 
-          {step >= 1 && (
             <Button
               type="primary"
               size="large"
               icon={<RocketOutlined />}
               onClick={handleConvert}
-              loading={loading && step === 2}
+              loading={loading && step === 3}
               block
               style={{ height: 48, fontSize: 16 }}
             >
               开始转换
             </Button>
-          )}
-        </Space>
-      </Card>
+          </Space>
+        </Card>
+      )}
 
       {/* Converting progress */}
-      {step === 2 && (
+      {step === 3 && (
         <Card style={{ marginBottom: 16 }}>
           <div style={{ textAlign: 'center' }}>
             <Spin size="large" />
@@ -217,7 +296,7 @@ export default function ParsePage() {
       )}
 
       {/* Done */}
-      {step === 3 && (
+      {step === 4 && (
         <Alert
           type="success"
           message="转换完成！"
@@ -228,7 +307,7 @@ export default function ParsePage() {
       )}
 
       {/* Parse Results */}
-      {summary && step >= 1 && (
+      {summary && step >= 2 && (
         <>
           <Divider />
           <Title level={4}>📊 工程概览</Title>
@@ -243,7 +322,7 @@ export default function ParsePage() {
         </>
       )}
 
-      {result && step >= 1 && (
+      {result && step >= 2 && (
         <>
           <Divider />
           <Tabs
@@ -275,7 +354,7 @@ export default function ParsePage() {
 // ========== Sub-components ==========
 
 function ScenesTab({ scenes }) {
-  const [selected, setSelected] = useState(null);
+  const [selected, setSelected] = useState(scenes.length === 1 ? scenes[0] : null);
 
   const buildTreeData = (nodes) => {
     return (nodes || []).map((node, idx) => ({

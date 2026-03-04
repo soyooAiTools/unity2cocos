@@ -39,8 +39,13 @@ export async function login(username, password) {
 }
 
 // Unity2Cocos
-export async function parseProject(projectPath) {
-  const res = await api.post('/unity2cocos/parse', { projectPath });
+export async function scanProject(projectPath) {
+  const res = await api.post('/unity2cocos/scan', { projectPath });
+  return res.data;
+}
+
+export async function parseProject(projectPath, scenePath) {
+  const res = await api.post('/unity2cocos/parse', { projectPath, scenePath });
   return res.data;
 }
 
