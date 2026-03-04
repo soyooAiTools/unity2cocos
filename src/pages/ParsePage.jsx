@@ -304,8 +304,21 @@ export default function ParsePage() {
           description={
             <div>
               <div>{`Cocos Creator 3.8 工程已输出到: ${outputPath}`}</div>
-              <div style={{ marginTop: 8, color: '#666' }}>
-                ⚠️ 请先用 Cocos Creator 打开工程等待资源导入完成，然后点击下方按钮修复模型引用
+              {convertResult?.meshFixed > 0 && (
+                <div style={{ marginTop: 8, color: '#52c41a' }}>
+                  ✅ 已自动修复 {convertResult.meshFixed}/{convertResult.meshTotal} 个 Mesh 引用
+                </div>
+              )}
+              <div style={{ marginTop: 8 }}>
+                <b>下一步：</b>
+              </div>
+              <div style={{ marginTop: 4 }}>
+                1. 用 Cocos Creator 打开 <code>{outputPath}</code>，等待资源导入完成
+              </div>
+              <div>
+                2. {convertResult?.meshFixed > 0
+                  ? '打开场景查看效果。如果模型仍有问题，点击下方按钮再次修复'
+                  : '导入完成后，点击下方按钮修复 Mesh 引用，然后重新打开场景'}
               </div>
             </div>
           }
